@@ -72,8 +72,37 @@ class EcalPnetVetoProcessor(ldmxcfg.Producer) :
         self.track_collection = "RecoilTracksClean"
         self.track_pass_name = ""
         self.recoil_from_tracking = True
+        
+class EcalWABRecRemProcessor(ldmxcfg.Producer):
+    """Configuration for the recoil electron removal processor
+    for WAB and WAB-like events."""
 
+    def __init__(self, name = 'EcalWABRecRem') :
+        super().__init__(name, "ecal::EcalWABRecRemProcessor", 'Ecal')
 
+        from LDMX.Ecal.makePath import makeRoCPath
 
+        self.beam_energy = 8000.0  # in MeV
+        self.num_ecal_layers = 32
 
+        self.rem_dist_file = makeRoCPath ( 'rec_rem_dist_v3' )
+        self.collection_name_included = 'EcalRecHitsInc'
+        self.collection_name_excluded = 'EcalRecHitsExc'
+        self.rec_coll_name = 'EcalRecHits'
+        self.rec_pass_name = ''
+        self.ecal_sim_pass_name = ''
+        self.ecal_sp_hits_pass_name = ''
 
+        self.recoil_from_tracking = True
+        self.track_coll_name = 'RecoilTracksClean'
+        self.track_pass_name = ''
+
+from LDMX.Ecal.makePath import makeBDTPath
+ecalveto_wab_reprocessor = EcalVetoProcessor()
+vars(ecalveto_wab_reprocessor).update(
+    bdt_file = makeBDTPath( 'wab_bdt_v3' ),
+    disc_cut = 0.5185,
+    rec_coll_name = 'EcalRecHitsInc',
+    collection_name = 'EcalVetoInc',
+)
+recoil_removal_processing = [EcalWABRecRemProcessor(), ecalveto_wab_reprocessor]
