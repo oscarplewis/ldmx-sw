@@ -32,7 +32,7 @@ std::tuple<int, const ldmx::SimParticle *> getRecoil(
     if (particle.getPdgID() == 11 and
         particle.getProcessType() ==
             ldmx::SimParticle::ProcessType::eDarkBrem) {
-      return {trackID, &particle};
+      return {trackID, &particleMap.at(trackID)};
     }
   }
   // only get here if recoil electron was not "produced" by dark brem
