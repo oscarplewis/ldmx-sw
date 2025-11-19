@@ -85,7 +85,7 @@ class EcalWABRecRemProcessor(ldmxcfg.Producer):
         self.beam_energy = 8000.0  # in MeV
         self.num_ecal_layers = 32
 
-        self.rem_dist_file = makeRoCPath ( 'rec_rem_dist_v3' )
+        self.rem_dist_file = makeRoCPath ( 'RoC_v14_8gev' )
         self.collection_name_included = 'EcalRecHitsInc'
         self.collection_name_excluded = 'EcalRecHitsExc'
         self.rec_coll_name = 'EcalRecHits'
@@ -100,7 +100,7 @@ class EcalWABRecRemProcessor(ldmxcfg.Producer):
 from LDMX.Ecal.makePath import makeBDTPath
 ecalveto_wab_reprocessor = EcalVetoProcessor()
 vars(ecalveto_wab_reprocessor).update(
-    bdt_file = makeBDTPath( 'wab_bdt_v3' ),
+    bdt_file = makeBDTPath( 'wab_bdt_1RoC' ),
     disc_cut = 0.5185,
     rec_coll_name = 'EcalRecHitsInc',
     collection_name = 'EcalVetoInc',
