@@ -30,16 +30,12 @@ void EcalVetoProcessor::buildBDTFeatureVector(
   bdt_features_.push_back(result.getEcalBackEnergy());
   // MIP tracking
 
-  bdt_features_.push_back(-1.);  // NStraight
-  bdt_features_.push_back(-1.);  // FirstNearPHLayer
-  bdt_features_.push_back(-1.);  // NNearPHHits
-  bdt_features_.push_back(-1.);  // PhotonTerritoryHits
+  bdt_features_.push_back(-1.);  // NStraight // segmip
+  bdt_features_.push_back(-1.);  // FirstNearPHLayer // segmip
+  bdt_features_.push_back(-1.);  // NNearPHHits // segmip
+  bdt_features_.push_back(-1.);  // PhotonTerritoryHits // segmip
 
-  // bdt_features_.push_back(result.getNStraightTracks());
-  // bdt_features_.push_back(result.getFirstNearPhLayer());
-  // bdt_features_.push_back(result.getNNearPhHits());
-  // bdt_features_.push_back(result.getPhotonTerritoryHits());
-  // bdt_features_.push_back(result.getNTrackingHits());
+  // bdt_features_.push_back(result.getNTrackingHits()); // humberto
   bdt_features_.push_back(result.getEPSep());
   bdt_features_.push_back(result.getEPDot());
   // Longitudinal segment variables
@@ -171,6 +167,12 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   auto start = std::chrono::high_resolution_clock::now();
   nevents_++;
 
+  ///////////////////////////////////////////////////////
+  //////////////////////// SETUP ////////////////////////
+  ///////////////////////////////////////////////////////
+
+  ldmx_log(trace) << "   Setup EcalVetoProcessor";
+
   // Get the Ecal Geometry
   geometry_ = &getCondition<ldmx::EcalGeometry>(
       ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME);
@@ -190,6 +192,12 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   auto setup = std::chrono::high_resolution_clock::now();
   profiling_map_["setup"] +=
       std::chrono::duration<float, std::milli>(setup - start).count();
+
+  ///////////////////////////////////////////////////
+  ///////////////// RECOIL ELECTRON /////////////////
+  ///////////////////////////////////////////////////
+
+  ldmx_log(trace) << "   Find recoil electron and photon projected trajectories in the Ecal";
 
   if (!recoil_from_tracking_ &&
       event.exists("EcalScoringPlaneHits", sp_pass_name_)) {
@@ -433,11 +441,15 @@ void EcalVetoProcessor::produce(framework::Event &event) {
     }
   }  // end conditional on find_dist_traj_from_sim_vars
 
-  ldmx_log(trace) << "   Get projected trajectories for electron and photon";
-
   auto recoil_electron = std::chrono::high_resolution_clock::now();
   profiling_map_["recoil_electron"] +=
       std::chrono::duration<float, std::milli>(recoil_electron - setup).count();
+
+  ////////////////////////////////////////////////
+  ///////////////// TRAJECTORIES /////////////////
+  ////////////////////////////////////////////////
+
+  ldmx_log(trace) << "   Get projected trajectories for electron and photon";
 
   // Get projected trajectories for electron and photon
   std::vector<XYCoords> ele_trajectory, photon_trajectory,
@@ -502,12 +514,16 @@ void EcalVetoProcessor::produce(framework::Event &event) {
         << p2target[2] << " X = " << pos2target[0];
   }
 
-  ldmx_log(trace) << "   Build Radii of containment (ROC)";
-
   auto trajectories = std::chrono::high_resolution_clock::now();
   profiling_map_["trajectories"] +=
       std::chrono::duration<float, std::milli>(trajectories - recoil_electron)
           .count();
+
+  /////////////////////////////////////////////////
+  ///////////////// ROC VARIABLES /////////////////
+  /////////////////////////////////////////////////
+
+  ldmx_log(trace) << "   Build Radii of containment (ROC)";
 
   // Use the appropriate containment radii for the recoil electron
   std::vector<float> roc_values_bin_0(roc_range_values_[0].begin() + 4,
@@ -548,6 +564,12 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   profiling_map_["roc_var"] +=
       std::chrono::duration<float, std::milli>(roc_var - trajectories).count();
 
+  ////////////////////////////////////////////////
+  ///////////////// FILL HITMAPS /////////////////
+  ////////////////////////////////////////////////
+
+  ldmx_log(trace) << "   Fill hitmaps with Ecal hits";
+
   // Get the collection of digitized Ecal hits_ from the event.
   const std::vector<ldmx::EcalHit> ecal_rec_hits =
       event.getCollection<ldmx::EcalHit>(rec_coll_name_, rec_pass_name_);
@@ -564,6 +586,12 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   auto fill_hitmaps = std::chrono::high_resolution_clock::now();
   profiling_map_["fill_hitmaps"] +=
       std::chrono::duration<float, std::milli>(fill_hitmaps - roc_var).count();
+
+  ////////////////////////////////////////////////////////////////
+  ///////////////// DEFINE CONTAINMENT VARIABLES /////////////////
+  ////////////////////////////////////////////////////////////////
+
+  ldmx_log(trace) << "   Define containment variables";
 
   // Loop over the hits_ from the event to calculate the rest of the important
   // quantities
@@ -627,6 +655,12 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   profiling_map_["containment_var"] +=
       std::chrono::duration<float, std::milli>(containment_var - fill_hitmaps)
           .count();
+
+  //////////////////////////////////////////////////////
+  ///////////////// MIP TRACKING SETUP /////////////////
+  //////////////////////////////////////////////////////
+
+  ldmx_log(trace) << "   Setup MIP tracking with variable calculations";
 
   // MIP tracking:  vector of hits_ to be used in the MIP tracking algorithm.
   // All hits_ inside the electron ROC (or all hits_ in the ECal if the event is
@@ -1046,6 +1080,13 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   profiling_map_["mip_tracking_setup"] +=
       std::chrono::duration<double, std::milli>(mip_tracking_setup - start)
           .count();
+  
+  /////////////////////////////////////////////////
+  ///////////////// SET VARIABLES /////////////////
+  /////////////////////////////////////////////////
+
+  ldmx_log(trace) << "   Set variables to pass to output";
+
   result.setVariables(
       n_readout_hits_, deepest_layer_hit_, n_tracking_hits_, summed_det_,
       summed_tight_iso_, max_cell_dep_, shower_rms_, x_std_, y_std_,
@@ -1066,6 +1107,13 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   profiling_map_["set_variables"] += std::chrono::duration<double, std::milli>(
                                          set_variables - mip_tracking_setup)
                                          .count();
+  
+  /////////////////////////////////////////////////
+  ///////////////// BDT VARIABLES /////////////////
+  /////////////////////////////////////////////////
+
+  ldmx_log(trace) << "   Process BDT variables and pass them to bdt_features_";
+
   buildBDTFeatureVector(result);
   ldmx::ort::FloatArrays inputs({bdt_features_});
   float pred =
