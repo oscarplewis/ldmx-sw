@@ -27,6 +27,11 @@ void EcalVetoResult::clear() {
   ep_dot_ = 0;
   ep_dot_at_target_ = 0;
 
+  dist_ele_traj_.clear();
+  dist_pho_traj_.clear();
+  dist_ele_traj_from_sim_.clear();
+  dist_pho_traj_from_sim_.clear();
+
   electron_containment_energy_.clear();
   photon_containment_energy_.clear();
   outside_containment_energy_.clear();
@@ -76,6 +81,10 @@ void EcalVetoResult::setVariables(
     float std_layer_hit, float ecal_back_energy, float ep_ang,
     float ep_ang_at_target, float ep_sep, float ep_dot, float ep_dot_at_target,
 
+    std::vector<float> dist_ele_traj, std::vector<float> dist_pho_traj,
+    std::vector<float> dist_ele_traj_from_sim,
+    std::vector<float> dist_pho_traj_from_sim,
+
     std::vector<float> electron_containment_energy,
     std::vector<float> photon_containment_energy,
     std::vector<float> outside_containment_energy,
@@ -123,6 +132,11 @@ void EcalVetoResult::setVariables(
   ep_sep_ = ep_sep;
   ep_dot_ = ep_dot;
   ep_dot_at_target_ = ep_dot_at_target;
+
+  dist_ele_traj_ = dist_ele_traj;
+  dist_pho_traj_ = dist_pho_traj;
+  dist_ele_traj_from_sim_ = dist_ele_traj_from_sim;
+  dist_pho_traj_from_sim_ = dist_pho_traj_from_sim;
 
   electron_containment_energy_ = electron_containment_energy;
   photon_containment_energy_ = photon_containment_energy;

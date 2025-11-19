@@ -42,6 +42,10 @@ class EcalVetoResult {
       float ep_ang_at_target, float ep_sep, float ep_dot,
       float ep_dot_at_target,
 
+      std::vector<float> dist_ele_traj, std::vector<float> dist_pho_traj,
+      std::vector<float> dist_ele_traj_from_sim,
+      std::vector<float> dist_pho_traj_from_sim,
+
       std::vector<float> electron_containment_energy,
       std::vector<float> photon_containment_energy,
       std::vector<float> outside_containment_energy,
@@ -122,6 +126,18 @@ class EcalVetoResult {
   float getEPDot() const { return ep_dot_; }
 
   float getEPDotAtTarget() const { return ep_dot_at_target_; }
+
+  const std::vector<float>& getDistEleTraj() const { return dist_ele_traj_; }
+
+  const std::vector<float>& getDistPhoTraj() const { return dist_pho_traj_; }
+
+  const std::vector<float>& getDistEleTrajFromSim() const {
+    return dist_ele_traj_from_sim_;
+  }
+
+  const std::vector<float>& getDistPhoTrajFromSim() const {
+    return dist_pho_traj_from_sim_;
+  }
 
   const std::vector<float>& getElectronContainmentEnergy() const {
     return electron_containment_energy_;
@@ -334,6 +350,12 @@ class EcalVetoResult {
   float ep_dot_{0};
   /// Dot product of the photon and electron momenta unit vectors as at Target
   float ep_dot_at_target_{0};
+
+  // distance from electron or photon trajectories to an Ecal hit
+  std::vector<float> dist_ele_traj_;
+  std::vector<float> dist_pho_traj_;
+  std::vector<float> dist_ele_traj_from_sim_;
+  std::vector<float> dist_pho_traj_from_sim_;
 
   std::vector<float> ecal_layer_edep_readout_;
 

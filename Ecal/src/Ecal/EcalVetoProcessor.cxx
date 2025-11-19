@@ -156,6 +156,11 @@ void EcalVetoProcessor::clearProcessor() {
   ep_dot_ = 0;
   ep_dot_at_target_ = 0;
 
+  dist_ele_traj_.clear();
+  dist_pho_traj_.clear();
+  dist_ele_traj_from_sim_.clear();
+  dist_pho_traj_from_sim_.clear();
+
   std::fill(ecal_layer_edep_raw_.begin(), ecal_layer_edep_raw_.end(), 0);
   std::fill(ecal_layer_edep_readout_.begin(), ecal_layer_edep_readout_.end(),
             0);
@@ -312,6 +317,122 @@ void EcalVetoProcessor::produce(framework::Event &event) {
                     << recoil_pos_at_target[2] << ")";
   }  // condition to do recoil information from tracking
 
+  // initialize variables for truth particles momentum and position
+  std::array<float, 3> p1 = {0., 0., 0.};
+  std::array<float, 3> p2 = {0., 0., 0.};
+  std::array<float, 3> p1target = {0., 0., 0.};
+  std::array<float, 3> p2target = {0., 0., 0.};
+  std::array<float, 3> pos1 = {-9999., -9999., -9999.};
+  std::array<float, 3> pos2 = {-9999., -9999., -9999.};
+  std::array<float, 3> pos1target = {-9999., -9999., -9999.};
+  std::array<float, 3> pos2target = {-9999., -9999., -9999.};
+
+  bool find_dist_traj_from_sim_vars{
+      true};  // this conditional doesn't do anything functional, but is here to
+              // keep variable scopes nice and tidy
+  if (find_dist_traj_from_sim_vars) {
+    // Get the collection of simulated particles from the event
+    auto particle_map{event.getMap<int, ldmx::SimParticle>(
+        "SimParticles", sim_particles_passname_)};
+
+    // Search for the truth recoil electron and brem photon
+    auto [recoil_track_id, recoil_electron] = analysis::getRecoil(particle_map);
+    auto [photon_track_id, brem_photon] = analysis::getBremPhoton(particle_map);
+
+    if (event.exists("EcalScoringPlaneHits", sp_pass_name_)) {
+      auto ecal_sp_hits{event.getCollection<ldmx::SimTrackerHit>(
+          "EcalScoringPlaneHits", sp_pass_name_)};
+
+      // find truth recoil electron and primary photon in Ecal SP
+      float ele_pmax = 0;
+      float pho_pmax = 0;
+      for (ldmx::SimTrackerHit &sp_hit : ecal_sp_hits) {
+        ldmx::SimSpecialID hit_id(sp_hit.getID());
+        auto ecal_sp_momentum = sp_hit.getMomentum();
+        auto ecal_sp_position = sp_hit.getPosition();
+        if (hit_id.plane() != 31 || ecal_sp_momentum[2] <= 0) continue;
+        if (sp_hit.getTrackID() == recoil_track_id) {
+          // A*A is faster than pow(A,2)
+          if (sqrt((ecal_sp_momentum[0] * ecal_sp_momentum[0]) +
+                   (ecal_sp_momentum[1] * ecal_sp_momentum[1]) +
+                   (ecal_sp_momentum[2] * ecal_sp_momentum[2])) > ele_pmax) {
+            p1 = {static_cast<float>(ecal_sp_momentum[0]),
+                  static_cast<float>(ecal_sp_momentum[1]),
+                  static_cast<float>(ecal_sp_momentum[2])};
+            pos1 = {(ecal_sp_position[0]), (ecal_sp_position[1]),
+                    (ecal_sp_position[2])};
+            ele_pmax = sqrt(p1[0] * p1[0] + p1[1] * p1[1] + p1[2] * p1[2]);
+          }
+        } else if (sp_hit.getTrackID() == photon_track_id) {
+          // A*A is faster than pow(A,2)
+          if (sqrt((ecal_sp_momentum[0] * ecal_sp_momentum[0]) +
+                   (ecal_sp_momentum[1] * ecal_sp_momentum[1]) +
+                   (ecal_sp_momentum[2] * ecal_sp_momentum[2])) > pho_pmax) {
+            p2 = {static_cast<float>(ecal_sp_momentum[0]),
+                  static_cast<float>(ecal_sp_momentum[1]),
+                  static_cast<float>(ecal_sp_momentum[2])};
+            pos2 = {(ecal_sp_position[0]), (ecal_sp_position[1]),
+                    (ecal_sp_position[2])};
+            pho_pmax = sqrt(p2[0] * p2[0] + p2[1] * p2[1] + p2[2] * p2[2]);
+          }
+        }
+      }
+    } else if (!event.exists("EcalScoringPlaneHits", sp_pass_name_)) {
+      ldmx_log(debug)
+          << "Event does not exist in collection EcalScoringPlaneHits";
+    }
+
+    // Find target SP hit for truth electron and photon
+    if (event.exists("TargetScoringPlaneHits", sp_pass_name_)) {
+      std::vector<ldmx::SimTrackerHit> target_sp_hits =
+          event.getCollection<ldmx::SimTrackerHit>("TargetScoringPlaneHits",
+                                                   sp_pass_name_);
+      float ele_pmax = 0;
+      float pho_pmax = 0;
+      for (ldmx::SimTrackerHit &sp_hit : target_sp_hits) {
+        ldmx::SimSpecialID hit_id(sp_hit.getID());
+        auto target_sp_momentum = sp_hit.getMomentum();
+        auto target_sp_position = sp_hit.getPosition();
+        if (hit_id.plane() != 1 || target_sp_momentum[2] <= 0) continue;
+
+        if (sp_hit.getTrackID() == recoil_track_id) {
+          if (sqrt((target_sp_momentum[0] * target_sp_momentum[0]) +
+                   (target_sp_momentum[1] * target_sp_momentum[1]) +
+                   (target_sp_momentum[2] * target_sp_momentum[2])) >
+              ele_pmax) {
+            p1target = {static_cast<float>(target_sp_momentum[0]),
+                        static_cast<float>(target_sp_momentum[1]),
+                        static_cast<float>(target_sp_momentum[2])};
+            pos1target = {target_sp_position[0], target_sp_position[1],
+                          target_sp_position[2]};
+            // (A*A) is faster than pow(A,2)
+            ele_pmax =
+                sqrt((p1target[0] * p1target[0]) + (p1target[1] * p1target[1]) +
+                     (p1target[2] * p1target[2]));
+          }
+        } else if (sp_hit.getTrackID() == photon_track_id) {
+          if (sqrt((target_sp_momentum[0] * target_sp_momentum[0]) +
+                   (target_sp_momentum[1] * target_sp_momentum[1]) +
+                   (target_sp_momentum[2] * target_sp_momentum[2])) >
+              pho_pmax) {
+            p2target = {static_cast<float>(target_sp_momentum[0]),
+                        static_cast<float>(target_sp_momentum[1]),
+                        static_cast<float>(target_sp_momentum[2])};
+            pos2target = {(target_sp_position[0]), (target_sp_position[1]),
+                          (target_sp_position[2])};
+            pho_pmax =
+                sqrt(p2target[0] * p2target[0] + p2target[1] * p2target[1] +
+                     p2target[2] * p2target[2]);
+          }
+        }
+      }  // end loop on target SP hits
+    } else if (!event.exists("TargetScoringPlaneHits",
+                             sp_pass_name_)) {  // end condition on target SP
+      ldmx_log(debug)
+          << "Event does not exist in collection TargetScoringPlaneHits";
+    }
+  }  // end conditional on find_dist_traj_from_sim_vars
+
   ldmx_log(trace) << "   Get projected trajectories for electron and photon";
 
   auto recoil_electron = std::chrono::high_resolution_clock::now();
@@ -348,6 +469,38 @@ void EcalVetoProcessor::produce(framework::Event &event) {
                                           : -1.0;
   float recoil_theta =
       recoil_p_mag > 0 ? acos(recoil_p[2] / recoil_p_mag) * 180.0 / M_PI : -1.0;
+
+  // Get truth trajectories for electron and photon
+  std::vector<XYCoords> ele_trajectory_from_sim, pho_trajectory_from_sim,
+      ele_trajectory_at_target_from_sim, pho_trajectory_at_target_from_sim;
+  // Require that z-momentum is positive (which will also exclude the default
+  // initializaton) Require that the positions are not the default initializaton
+  if ((p1[2] > 0.) && (pos1[0] != -9999.)) {
+    ele_trajectory_from_sim = getTrajectory(p1, pos1);
+  } else {
+    ldmx_log(trace) << "Ele TRUTH trajectory cannot be determined, pZ = "
+                    << p1[2] << " X = " << pos1[0];
+  }
+  if ((p2[2] > 0.) && (pos2[0] != -9999.)) {
+    pho_trajectory_from_sim = getTrajectory(p2, pos2);
+  } else {
+    ldmx_log(trace) << "Pho TRUTH trajectory cannot be determined, pZ = "
+                    << p2[2] << " X = " << pos2[0];
+  }
+  if ((p1target[2] > 0.) && (pos1target[0] != -9999.)) {
+    ele_trajectory_at_target_from_sim = getTrajectory(p1target, pos1target);
+  } else {
+    ldmx_log(trace)
+        << "Ele TRUTH trajectory at target cannot be determined, pZ = "
+        << p1target[2] << " X = " << pos1target[0];
+  }
+  if ((p2target[2] > 0.) && (pos2target[0] != -9999.)) {
+    pho_trajectory_at_target_from_sim = getTrajectory(p2target, pos2target);
+  } else {
+    ldmx_log(trace)
+        << "Pho TRUTH trajectory at target cannot be determined, pZ = "
+        << p2target[2] << " X = " << pos2target[0];
+  }
 
   ldmx_log(trace) << "   Build Radii of containment (ROC)";
 
@@ -508,6 +661,8 @@ void EcalVetoProcessor::produce(framework::Event &event) {
       deepest_layer_hit_ = id.layer();
     }
     XYCoords xy_pair = std::make_pair(rechit_x, rechit_y);
+
+    // calculate distance from ele/pho trajectory variables
     float distance_ele_trajectory =
         ele_trajectory.size()
             ? sqrt((xy_pair.first - ele_trajectory[id.layer()].first) *
@@ -515,6 +670,7 @@ void EcalVetoProcessor::produce(framework::Event &event) {
                    (xy_pair.second - ele_trajectory[id.layer()].second) *
                        (xy_pair.second - ele_trajectory[id.layer()].second))
             : -1.0;
+    dist_ele_traj_.push_back(distance_ele_trajectory);
     float distance_photon_trajectory =
         photon_trajectory.size()
             ? sqrt((xy_pair.first - photon_trajectory[id.layer()].first) *
@@ -522,6 +678,29 @@ void EcalVetoProcessor::produce(framework::Event &event) {
                    (xy_pair.second - photon_trajectory[id.layer()].second) *
                        (xy_pair.second - photon_trajectory[id.layer()].second))
             : -1.0;
+    dist_pho_traj_.push_back(distance_photon_trajectory);
+
+    // calculate truth distance from ele/pho trajectory variables
+    float distance_ele_trajectory_from_sim =
+        ele_trajectory_from_sim.size()
+            ? sqrt(pow((xy_pair.first -
+                        ele_trajectory_from_sim[id.layer()].first),
+                       2) +
+                   pow((xy_pair.second -
+                        ele_trajectory_from_sim[id.layer()].second),
+                       2))
+            : -1.0;
+    dist_ele_traj_from_sim_.push_back(distance_ele_trajectory_from_sim);
+    float distance_photon_trajectory_from_sim =
+        pho_trajectory_from_sim.size()
+            ? sqrt(pow((xy_pair.first -
+                        pho_trajectory_from_sim[id.layer()].first),
+                       2) +
+                   pow((xy_pair.second -
+                        pho_trajectory_from_sim[id.layer()].second),
+                       2))
+            : -1.0;
+    dist_pho_traj_from_sim_.push_back(distance_photon_trajectory_from_sim);
 
     // Decide which longitudinal segment the hit is in and add to sums
     for (unsigned int iseg = 0; iseg < n_segments; iseg++) {
@@ -871,7 +1050,8 @@ void EcalVetoProcessor::produce(framework::Event &event) {
       n_readout_hits_, deepest_layer_hit_, n_tracking_hits_, summed_det_,
       summed_tight_iso_, max_cell_dep_, shower_rms_, x_std_, y_std_,
       avg_layer_hit_, std_layer_hit_, ecal_back_energy_, ep_ang_,
-      ep_ang_at_target_, ep_sep_, ep_dot_, ep_dot_at_target_,
+      ep_ang_at_target_, ep_sep_, ep_dot_, ep_dot_at_target_, dist_ele_traj_,
+      dist_pho_traj_, dist_ele_traj_from_sim_, dist_pho_traj_from_sim_,
       electron_containment_energy, photon_containment_energy,
       outside_containment_energy, outside_containment_n_hits,
       outside_containment_x_std, outside_containment_y_std, energy_seg,

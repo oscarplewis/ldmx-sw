@@ -143,6 +143,12 @@ class EcalVetoProcessor : public framework::Producer {
   /// Dot product of the photon and electron momenta unit vectors at Target
   float ep_dot_at_target_{0};
 
+  // distance from electron or photon trajectories to an Ecal hit
+  std::vector<float> dist_ele_traj_;
+  std::vector<float> dist_pho_traj_;
+  std::vector<float> dist_ele_traj_from_sim_;
+  std::vector<float> dist_pho_traj_from_sim_;
+
   float bdt_cut_val_{0};
 
   float beam_energy_mev_{0};
