@@ -197,7 +197,8 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   ///////////////// RECOIL ELECTRON /////////////////
   ///////////////////////////////////////////////////
 
-  ldmx_log(trace) << "   Find recoil electron and photon projected trajectories in the Ecal";
+  ldmx_log(trace) << "   Find recoil electron and photon projected "
+                     "trajectories in the Ecal";
 
   if (!recoil_from_tracking_ &&
       event.exists("EcalScoringPlaneHits", sp_pass_name_)) {
@@ -1040,13 +1041,16 @@ void EcalVetoProcessor::produce(framework::Event &event) {
                                  static_cast<float>(0.0));
       e_traj_target_end.SetXYZ(ele_trajectory_at_target[(0)].first,
                                ele_trajectory_at_target[(0)].second,
-                               geometry_->getZPosition(0));
-      // Now calculate the ep angle at the target
+                               geometry_->getZPosition((n_ecal_layers_ - 1)));
+      // Now calculate the ep and ele angle at the target
       ROOT::Math::XYZVector evec_target =
           e_traj_target_end - e_traj_target_start;
+      ROOT::Math::XYZVector beam_axis(0, 0, 1);
       ROOT::Math::XYZVector e_norm_target = evec_target.Unit();
       ep_dot_at_target_ = e_norm_target.Dot(p_norm);
+      float ele_dot_at_target = e_norm_target.Dot(beam_axis);
       ep_ang_at_target_ = acos(ep_dot_at_target_) * 180.0 / M_PI;
+      ele_ang_at_target_ = acos(ele_dot_at_target) * 180.0 / M_PI;
     }
     ldmx_log(trace) << "   Electron trajectory calculated";
   } else {
@@ -1064,6 +1068,7 @@ void EcalVetoProcessor::produce(framework::Event &event) {
     /*ensures event will not be vetoed by angle/separation cut */
     ep_ang_ = 999.;
     ep_ang_at_target_ = 999.;
+    ele_ang_at_target_ = 999.;
     ep_sep_ = 999.;
     ep_dot_ = 999.;
     ep_dot_at_target_ = 999.;
@@ -1080,7 +1085,7 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   profiling_map_["mip_tracking_setup"] +=
       std::chrono::duration<double, std::milli>(mip_tracking_setup - start)
           .count();
-  
+
   /////////////////////////////////////////////////
   ///////////////// SET VARIABLES /////////////////
   /////////////////////////////////////////////////
@@ -1091,8 +1096,9 @@ void EcalVetoProcessor::produce(framework::Event &event) {
       n_readout_hits_, deepest_layer_hit_, n_tracking_hits_, summed_det_,
       summed_tight_iso_, max_cell_dep_, shower_rms_, x_std_, y_std_,
       avg_layer_hit_, std_layer_hit_, ecal_back_energy_, ep_ang_,
-      ep_ang_at_target_, ep_sep_, ep_dot_, ep_dot_at_target_, dist_ele_traj_,
-      dist_pho_traj_, dist_ele_traj_from_sim_, dist_pho_traj_from_sim_,
+      ep_ang_at_target_, ele_ang_at_target_, ep_sep_, ep_dot_,
+      ep_dot_at_target_, dist_ele_traj_, dist_pho_traj_,
+      dist_ele_traj_from_sim_, dist_pho_traj_from_sim_,
       electron_containment_energy, photon_containment_energy,
       outside_containment_energy, outside_containment_n_hits,
       outside_containment_x_std, outside_containment_y_std, energy_seg,
@@ -1107,7 +1113,7 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   profiling_map_["set_variables"] += std::chrono::duration<double, std::milli>(
                                          set_variables - mip_tracking_setup)
                                          .count();
-  
+
   /////////////////////////////////////////////////
   ///////////////// BDT VARIABLES /////////////////
   /////////////////////////////////////////////////

@@ -135,6 +135,8 @@ class EcalVetoProcessor : public framework::Producer {
   /// Angular separation between the projected photon and electron trajectories
   /// as at Target
   float ep_ang_at_target_{0};
+  /// angle of projected electron trajectory at target from the z axis
+  float ele_ang_at_target_{0};
   /// Distance between the projected photon and electron trajectories at the
   /// ECal face
   float ep_sep_{0};

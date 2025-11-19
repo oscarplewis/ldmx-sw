@@ -23,6 +23,7 @@ void EcalVetoResult::clear() {
   n_tracking_hits_ = 0;
   ep_ang_ = 0;
   ep_ang_at_target_ = 0;
+  ele_ang_at_target_ = 0;
   ep_sep_ = 0;
   ep_dot_ = 0;
   ep_dot_at_target_ = 0;
@@ -79,7 +80,8 @@ void EcalVetoResult::setVariables(
     float summed_det, float summed_tight_iso, float max_cell_dep,
     float shower_rms, float x_std, float y_std, float avg_layer_hit,
     float std_layer_hit, float ecal_back_energy, float ep_ang,
-    float ep_ang_at_target, float ep_sep, float ep_dot, float ep_dot_at_target,
+    float ep_ang_at_target, float ele_ang_at_target, float ep_sep, float ep_dot,
+    float ep_dot_at_target,
 
     std::vector<float> dist_ele_traj, std::vector<float> dist_pho_traj,
     std::vector<float> dist_ele_traj_from_sim,
@@ -129,6 +131,7 @@ void EcalVetoResult::setVariables(
   n_tracking_hits_ = n_tracking_hits;
   ep_ang_ = ep_ang;
   ep_ang_at_target_ = ep_ang_at_target;
+  ele_ang_at_target_ = ele_ang_at_target;
   ep_sep_ = ep_sep;
   ep_dot_ = ep_dot;
   ep_dot_at_target_ = ep_dot_at_target;

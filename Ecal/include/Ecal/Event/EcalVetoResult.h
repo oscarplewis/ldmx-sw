@@ -39,8 +39,8 @@ class EcalVetoResult {
       float summed_det, float summed_tight_iso, float max_cell_dep,
       float shower_rms, float x_std, float y_std, float avg_layer_hit,
       float std_layer_hit, float ecal_back_energy, float ep_ang,
-      float ep_ang_at_target, float ep_sep, float ep_dot,
-      float ep_dot_at_target,
+      float ep_ang_at_target, float ele_ang_at_target, float ep_sep,
+      float ep_dot, float ep_dot_at_target,
 
       std::vector<float> dist_ele_traj, std::vector<float> dist_pho_traj,
       std::vector<float> dist_ele_traj_from_sim,
@@ -120,6 +120,8 @@ class EcalVetoResult {
   float getEPAng() const { return ep_ang_; }
 
   float getEPAngAtTarget() const { return ep_ang_at_target_; }
+
+  float getEleAngAtTarget() const { return ele_ang_at_target_; }
 
   float getEPSep() const { return ep_sep_; }
 
@@ -342,6 +344,8 @@ class EcalVetoResult {
   /// Angular separation between the projected photon and electron trajectories
   /// as projected at the target
   float ep_ang_at_target_{0};
+  /// Angle of projected electron trajectory at target from the z axis
+  float ele_ang_at_target_{0};
 
   /// Distance between the projected photon and electron trajectories at the
   /// ECal face
@@ -359,7 +363,7 @@ class EcalVetoResult {
 
   std::vector<float> ecal_layer_edep_readout_;
 
-  ClassDef(EcalVetoResult, 12);
+  ClassDef(EcalVetoResult, 13);
 };
 }  // namespace ldmx
 
