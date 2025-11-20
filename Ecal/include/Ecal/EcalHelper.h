@@ -24,7 +24,8 @@ namespace ecal {
  * @param[in] tracks The track collection
  * @param[in] ts_type The track state type, i.e. tracks state at the ECAL face
  * @param[in] ts_title The track state title, most likely "ecal"
- * @returns Vector of parameters for a propagated recoil track
+ * @returns Vector of parameters for the propagated recoil track with highest
+ * transverse momentum
  */
 
 std::vector<float> trackProp(const ldmx::Tracks& tracks,

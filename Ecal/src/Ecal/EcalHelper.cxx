@@ -7,6 +7,7 @@ std::vector<float> trackProp(const ldmx::Tracks &tracks,
                              const std::string &ts_title) {
   // Vector to hold the new track state variables
   std::vector<float> new_track_states;
+  float pt_max{0.0};
 
   // Return if no tracks
   if (tracks.empty()) return new_track_states;
@@ -26,6 +27,8 @@ std::vector<float> trackProp(const ldmx::Tracks &tracks,
     float track_state_loc1 = static_cast<float>(ecal_track_state.params_[1]);
     // param 2 = phi (azimuthal), param 3 = theta (polar)
     // param 4 = QoP
+    // discard positively charged and neutral tracks
+    if (ecal_track_state.params_[4] >= 0.0) continue;
     // ACTS (local)  to  LDMX (global) coordinates: (y_,z_,x_)->  (x_,y_,z_)
     // convert qop [1/GeV] to p [MeV]
     float p_track_state = (-1 / ecal_track_state.params_[4]) * 1000;
@@ -38,26 +41,35 @@ std::vector<float> trackProp(const ldmx::Tracks &tracks,
     float recoil_mom_z = p_track_state * sin(ecal_track_state.params_[3]) *
                          cos(ecal_track_state.params_[2]);
 
+    // Check that the transverse momentum is greater than the previous
+    // apprehended track
+    float recoil_mom_trns =
+        sqrt((recoil_mom_x * recoil_mom_x) + (recoil_mom_y * recoil_mom_y));
+    if (recoil_mom_trns < pt_max) continue;
+
+    // by this point, we want to keep this track
+    pt_max = recoil_mom_trns;
     // Store the new track state variables
-    new_track_states.push_back(track_state_loc0);
-    new_track_states.push_back(track_state_loc1);
+    if (new_track_states.empty()) {
+      new_track_states.assign(6, 0.0);
+    }
+    new_track_states[0] = track_state_loc0;
+    new_track_states[1] = track_state_loc1;
     // z_-position at the ECAL (4) or Target (1)
     if (ts_type == 4) {
       // this should match `ECAL_SCORING_PLANE` in CKFProcessor
-      new_track_states.push_back(240.5);
+      new_track_states[2] = 240.5;
     } else if (ts_type == 1) {
       // This should match `target_surface` in CKFProcessor
-      new_track_states.push_back(0.0);
+      new_track_states[2] = 0.0;
     }
 
-    new_track_states.push_back(recoil_mom_x);
-    new_track_states.push_back(recoil_mom_y);
-    new_track_states.push_back(recoil_mom_z);
+    new_track_states[3] = recoil_mom_x;
+    new_track_states[4] = recoil_mom_y;
+    new_track_states[5] = recoil_mom_z;
 
-    // Break after getting the first valid track state
-    // TODO: interface this with CLUE to make sure the propageted track
-    //       has an associated cluster in the ECAL
-    break;
+    // No break after first track to allow for the possibility of multiple
+    // electrons.
   }
 
   return new_track_states;
