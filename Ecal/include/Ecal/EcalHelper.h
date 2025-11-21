@@ -12,6 +12,7 @@
 #include "Tracking/Event/Track.h"
 
 // C++
+#include <algorithm>
 #include <cmath>
 
 // ROOT
@@ -24,13 +25,35 @@ namespace ecal {
  * @param[in] tracks The track collection
  * @param[in] ts_type The track state type, i.e. tracks state at the ECAL face
  * @param[in] ts_title The track state title, most likely "ecal"
- * @returns Vector of parameters for the propagated recoil track with highest
- * transverse momentum
+ * @returns Vector of parameters for a propagated recoil track
  */
 
 std::vector<float> trackProp(const ldmx::Tracks& tracks,
                              ldmx::TrackStateType ts_type,
                              const std::string& ts_title);
+
+/**
+ * Return a vector of parameters for a propagated recoil track
+ * @param[in] tracks The track collection
+ * @param[in] ts_type The track state type, i.e. tracks state at the ECAL face
+ * @param[in] ts_title The track state title, most likely "ecal"
+ * @returns Vector of parameters for the propagated recoil track with highest
+ * transverse momentum
+ */
+
+std::vector<float> recoilTrackProp(const ldmx::Tracks& tracks,
+                                   ldmx::TrackStateType ts_type,
+                                   const std::string& ts_title);
+
+/**
+ * Return a vector of track states for propogated electron tracks in the Ecal
+ * @param[in] tracks The track collection
+ * @param[in] ele_count The recorded number of electrons in the event
+ * @returns vector of track states for propogated electron tracks in the Ecal
+ */
+
+std::vector<std::vector<float>> eleTrackProp(const ldmx::Tracks& tracks,
+                                             int ele_count);
 
 // MIP tracking
 /**
