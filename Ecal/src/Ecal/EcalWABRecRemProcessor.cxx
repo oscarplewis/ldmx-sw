@@ -65,6 +65,12 @@ void EcalWABRecRemProcessor::configure(
       rem_dist_values_.push_back(values);
     }
   }
+
+  if (!recoil_from_tracking_) {
+    EXCEPTION_RAISE("EcalWABRecRemProcessor",
+                    "The processor is currently not configured to use sim "
+                    "information! Please set recoil_from_tracking = true");
+  }
 }
 
 void EcalWABRecRemProcessor::produce(framework::Event &event) {
@@ -78,8 +84,11 @@ void EcalWABRecRemProcessor::produce(framework::Event &event) {
   geometry_ = &getCondition<ldmx::EcalGeometry>(
       ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME);
 
-  std::array<float, 3> recoil_p = {0., 0., 0.};
-  std::array<float, 3> recoil_pos = {-9999., -9999., -9999.};
+  int ele_count{2};  // number of electrons in the event; TO DO: replace with
+                     // the ElectronCounter
+  std::vector<std::array<float, 3>> ele_p;
+  std::vector<std::array<float, 3>> ele_pos;
+  std::vector<bool> fiducial_in_tracker;
 
   auto setup_finish = std::chrono::high_resolution_clock::now();
   profiling_map_["setup"] +=
@@ -89,56 +98,58 @@ void EcalWABRecRemProcessor::produce(framework::Event &event) {
   ///////////////// RECOIL ELECTRON /////////////////
   ///////////////////////////////////////////////////
 
-  if (!recoil_from_tracking_ &&
-      event.exists("EcalScoringPlaneHits", ecal_sp_hits_pass_name_)) {
-    ldmx_log(trace) << "    Loop through all of the sim particles and find the "
-                       "recoil electron";
+  // TO DO: Gear this for multiple electron tracks in the Ecal, right now it can
+  // only handle one if (!recoil_from_tracking_ &&
+  //     event.exists("EcalScoringPlaneHits", ecal_sp_hits_pass_name_)) {
+  //   ldmx_log(trace) << "    Loop through all of the sim particles and find
+  //   the "
+  //                      "recoil electron";
 
-    // Get the collection of simulated particles from the event
-    auto particle_map{event.getMap<int, ldmx::SimParticle>(
-        "SimParticles", ecal_sim_pass_name_)};
+  //   // Get the collection of simulated particles from the event
+  //   auto particle_map{event.getMap<int, ldmx::SimParticle>(
+  //       "SimParticles", ecal_sim_pass_name_)};
 
-    // Loop through all of the sim particles and find the recoil electron.
-    auto [recoil_track_id, recoil_electron] = analysis::getRecoil(particle_map);
+  //   // Loop through all of the sim particles and find the recoil electron.
+  //   auto [recoil_track_id, recoil_electron] =
+  //   analysis::getRecoil(particle_map);
 
-    // Find ECAL SP hit for recoil electron
-    auto ecal_sp_hits{event.getCollection<ldmx::SimTrackerHit>(
-        "EcalScoringPlaneHits", ecal_sp_hits_pass_name_)};
-    float pmax = 0;
-    for (ldmx::SimTrackerHit &sp_hit : ecal_sp_hits) {
-      ldmx::SimSpecialID hit_id(sp_hit.getID());
-      auto ecal_sp_momentum = sp_hit.getMomentum();
-      auto ecal_sp_position = sp_hit.getPosition();
-      if (hit_id.plane() != 31 || ecal_sp_momentum[2] <= 0) continue;
+  //   // Find ECAL SP hit for recoil electron
+  //   auto ecal_sp_hits{event.getCollection<ldmx::SimTrackerHit>(
+  //       "EcalScoringPlaneHits", ecal_sp_hits_pass_name_)};
+  //   float pmax = 0;
+  //   for (ldmx::SimTrackerHit &sp_hit : ecal_sp_hits) {
+  //     ldmx::SimSpecialID hit_id(sp_hit.getID());
+  //     auto ecal_sp_momentum = sp_hit.getMomentum();
+  //     auto ecal_sp_position = sp_hit.getPosition();
+  //     if (hit_id.plane() != 31 || ecal_sp_momentum[2] <= 0) continue;
 
-      if (sp_hit.getTrackID() == recoil_track_id) {
-        // A*A is faster than pow(A,2)
-        if (sqrt((ecal_sp_momentum[0] * ecal_sp_momentum[0]) +
-                 (ecal_sp_momentum[1] * ecal_sp_momentum[1]) +
-                 (ecal_sp_momentum[2] * ecal_sp_momentum[2])) > pmax) {
-          recoil_p = {static_cast<float>(ecal_sp_momentum[0]),
-                      static_cast<float>(ecal_sp_momentum[1]),
-                      static_cast<float>(ecal_sp_momentum[2])};
-          recoil_pos = {(ecal_sp_position[0]), (ecal_sp_position[1]),
-                        (ecal_sp_position[2])};
-          pmax = sqrt(recoil_p[0] * recoil_p[0] + recoil_p[1] * recoil_p[1] +
-                      recoil_p[2] * recoil_p[2]);
-          ldmx_log(debug) << "    Set recoil_p = (" << recoil_p[0] << ", "
-                          << recoil_p[1] << ", " << recoil_p[2]
-                          << ") and recoil_pos = (" << recoil_pos[0] << ", "
-                          << recoil_pos[1] << ", " << recoil_pos[2] << ")";
-        }
-      }
-    }
-  } else if (!event.exists(
-                 "EcalScoringPlaneHits",
-                 ecal_sp_hits_pass_name_)) {  // end condition on ecal SP
-    ldmx_log(debug)
-        << "Event does not exist in collection EcalScoringPlaneHits";
-  }
+  //     if (sp_hit.getTrackID() == recoil_track_id) {
+  //       // A*A is faster than pow(A,2)
+  //       if (sqrt((ecal_sp_momentum[0] * ecal_sp_momentum[0]) +
+  //                (ecal_sp_momentum[1] * ecal_sp_momentum[1]) +
+  //                (ecal_sp_momentum[2] * ecal_sp_momentum[2])) > pmax) {
+  //         recoil_p = {static_cast<float>(ecal_sp_momentum[0]),
+  //                     static_cast<float>(ecal_sp_momentum[1]),
+  //                     static_cast<float>(ecal_sp_momentum[2])};
+  //         recoil_pos = {(ecal_sp_position[0]), (ecal_sp_position[1]),
+  //                       (ecal_sp_position[2])};
+  //         pmax = sqrt(recoil_p[0] * recoil_p[0] + recoil_p[1] * recoil_p[1] +
+  //                     recoil_p[2] * recoil_p[2]);
+  //         ldmx_log(debug) << "    Set recoil_p = (" << recoil_p[0] << ", "
+  //                         << recoil_p[1] << ", " << recoil_p[2]
+  //                         << ") and recoil_pos = (" << recoil_pos[0] << ", "
+  //                         << recoil_pos[1] << ", " << recoil_pos[2] << ")";
+  //       }
+  //     }
+  //   }
+  // } else if (!event.exists(
+  //                "EcalScoringPlaneHits",
+  //                ecal_sp_hits_pass_name_)) {  // end condition on ecal SP
+  //   ldmx_log(debug)
+  //       << "Event does not exist in collection EcalScoringPlaneHits";
+  // }
 
   // Get recoil_pos using recoil tracking
-  bool fiducial_in_tracker{false};
   if (recoil_from_tracking_) {
     ldmx_log(trace) << "    Get recoil tracks collection";
 
@@ -147,27 +158,41 @@ void EcalWABRecRemProcessor::produce(framework::Event &event) {
         event.getCollection<ldmx::Track>(track_coll_name_, track_pass_name_)};
 
     ldmx_log(trace) << "    Propagate the recoil ele to the ECAL";
-    ldmx::TrackStateType ts_type = ldmx::TrackStateType::AtECAL;
-    auto recoil_track_states_ecal =
-        ecal::recoilTrackProp(recoil_tracks, ts_type, "ecal");
-
-    ldmx_log(trace) << "    Set recoil_pos and recoil_p";
-    // Redefining recoil_pos now to come from the track state
-    // track_state_loc0 is recoil_pos[0] and track_state_loc1 is recoil_pos[1]
-    if (!recoil_track_states_ecal.empty()) {
-      fiducial_in_tracker = true;
-      recoil_pos = {recoil_track_states_ecal[0], recoil_track_states_ecal[1],
-                    recoil_track_states_ecal[2]};
-      recoil_p = {(recoil_track_states_ecal[3]), (recoil_track_states_ecal[4]),
-                  (recoil_track_states_ecal[5])};
-    } else {
-      ldmx_log(trace) << "    No recoil track at ECAL";
-      fiducial_in_tracker = false;
+    auto ele_track_states =  // std::vector<std::vector<float>> OR empty vector
+        ecal::eleTrackProp(recoil_tracks, ele_count);
+    if (!ele_track_states.empty()) {
+      for (int i = 0; i < ele_track_states.size(); ++i) {
+        std::vector<float> &recoil_track_states_ecal = ele_track_states[i];
+        std::array<float, 3> recoil_pos;
+        std::array<float, 3> recoil_p;
+        // track_state_loc0 is recoil_pos[0] and track_state_loc1 is
+        // recoil_pos[1]
+        if (!recoil_track_states_ecal.empty()) {
+          recoil_pos = {recoil_track_states_ecal[0],
+                        recoil_track_states_ecal[1],
+                        recoil_track_states_ecal[2]};
+          recoil_p = {(recoil_track_states_ecal[3]),
+                      (recoil_track_states_ecal[4]),
+                      (recoil_track_states_ecal[5])};
+          fiducial_in_tracker.push_back(true);
+        } else {
+          recoil_pos = {-9999.f, -9999.f, -9999.f};
+          recoil_p = {0.f, 0.f, 0.f};
+          fiducial_in_tracker.push_back(false);
+          ldmx_log(info) << "    Electron trajectory is empty!";
+        }
+        ldmx_log(debug) << "    Electron " << i + 1 << ": set recoil_p = ("
+                        << recoil_p[0] << ", " << recoil_p[1] << ", "
+                        << recoil_p[2] << ") and recoil_pos = ("
+                        << recoil_pos[0] << ", " << recoil_pos[1] << ", "
+                        << recoil_pos[2] << ")";
+        ele_p.push_back(recoil_p);
+        ele_pos.push_back(recoil_pos);
+      }  // end loop on electron track states
+    } else {  // end condition on nonempty electron track states
+      ldmx_log(info) << "    No valid electron tracks found in recoil tracking "
+                        "information";
     }
-    ldmx_log(debug) << "    Set recoil_p = (" << recoil_p[0] << ", "
-                    << recoil_p[1] << ", " << recoil_p[2]
-                    << ") and recoil_pos = (" << recoil_pos[0] << ", "
-                    << recoil_pos[1] << ", " << recoil_pos[2] << ")";
   }  // end condition to do recoil information from tracking
 
   auto recoil_electron_finish = std::chrono::high_resolution_clock::now();
@@ -182,24 +207,43 @@ void EcalWABRecRemProcessor::produce(framework::Event &event) {
 
   ldmx_log(trace) << "    Get projected trajectories for electron and photon";
 
-  // Get projected trajectories for electron and photon
-  std::vector<XYCoords> ele_trajectory;
-  // Require that z-momentum is positive (which will also exclude the default
-  // initializaton) Require that the positions are not the default
-  // initializaton
-  if ((recoil_p[2] > 0.) && (recoil_pos[0] != -9999.)) {
-    ele_trajectory = getTrajectory(recoil_p, recoil_pos);
-  } else {
-    ldmx_log(trace) << "Ele trajectory cannot be determined, pZ = "
-                    << recoil_p[2] << " X = " << recoil_pos[0];
-  }
+  std::vector<std::vector<XYCoords>> ele_trajectories;
+  std::vector<float> ele_p_mag;
+  std::vector<float> ele_theta;
 
-  float recoil_p_mag = (recoil_p[2] > 0.) ? sqrt((recoil_p[0] * recoil_p[0]) +
-                                                 (recoil_p[1] * recoil_p[1]) +
-                                                 (recoil_p[2] * recoil_p[2]))
-                                          : -1.0;
-  float recoil_theta =
-      recoil_p_mag > 0 ? acos(recoil_p[2] / recoil_p_mag) * 180.0 / M_PI : -1.0;
+  if (!ele_p.empty() && !ele_pos.empty()) {
+    for (int i = 0; i < ele_p.size(); ++i) {
+      std::array<float, 3> &recoil_p = ele_p[i];
+      std::array<float, 3> &recoil_pos = ele_pos[i];
+      std::vector<XYCoords> ele_trajectory;
+
+      // Require that z-momentum is positive (which will also exclude the
+      // default initializaton) Require that the positions are not the default
+      // initializaton
+      if ((recoil_p[2] > 0.) && (recoil_pos[0] != -9999.)) {
+        ele_trajectory = getTrajectory(recoil_p, recoil_pos);
+      } else {
+        ldmx_log(trace) << "Ele trajectory cannot be determined, pZ = "
+                        << recoil_p[2] << " X = " << recoil_pos[0];
+      }
+
+      // calculate removal distance binning variables
+      float recoil_p_mag =
+          (recoil_p[2] > 0.)
+              ? sqrt((recoil_p[0] * recoil_p[0]) + (recoil_p[1] * recoil_p[1]) +
+                     (recoil_p[2] * recoil_p[2]))
+              : -1.0;
+      float recoil_theta = recoil_p_mag > 0
+                               ? acos(recoil_p[2] / recoil_p_mag) * 180.0 / M_PI
+                               : -1.0;
+
+      // push back variable values
+      ele_trajectories.push_back(ele_trajectory);
+      ele_p_mag.push_back(recoil_p_mag);
+      ele_theta.push_back(recoil_theta);
+
+    }  // end loop on track states
+  }  // end condition on ele_p and ele_pos emptiness
 
   auto trajectories_finish = std::chrono::high_resolution_clock::now();
   profiling_map_["trajectories"] +=
@@ -212,39 +256,47 @@ void EcalWABRecRemProcessor::produce(framework::Event &event) {
   ///////////////////////////////////////////////////////////
 
   ldmx_log(trace) << "    Build recoil removal distances vector";
-  float theta_min, theta_max, p_min, p_max;
-  bool inrange;
-
-  // Use the appropriate containment radii for the recoil electron
   std::vector<float> rem_dist_values_bin_0(rem_dist_values_[0].begin() + 4,
                                            rem_dist_values_[0].end());
-  std::vector<float> removal_distances = rem_dist_values_bin_0;
+  std::vector<std::vector<float>> removal_distances;
 
-  for (int i = 0; i < rem_dist_values_.size(); i++) {
-    theta_min = rem_dist_values_[i][0];
-    theta_max = rem_dist_values_[i][1];
-    p_min = rem_dist_values_[i][2];
-    p_max = rem_dist_values_[i][3];
-    inrange = true;
+  if (!ele_trajectories.empty()) {
+    for (int k = 0; k < ele_p_mag.size(); ++k) {
+      float theta_min, theta_max, p_min, p_max;
+      bool inrange;
+      std::vector<float> rec_rem_dists = rem_dist_values_bin_0;
+      float &recoil_p_mag = ele_p_mag[k];
+      float &recoil_theta = ele_theta[k];
 
-    if (theta_min != -1.0) {
-      inrange = inrange && (recoil_theta >= theta_min);
-    }
-    if (theta_max != -1.0) {
-      inrange = inrange && (recoil_theta < theta_max);
-    }
-    if (p_min != -1.0) {
-      inrange = inrange && (recoil_p_mag >= p_min);
-    }
-    if (p_max != -1.0) {
-      inrange = inrange && (recoil_p_mag < p_max);
-    }
-    if (inrange) {
-      std::vector<float> rem_dist_values_bini(rem_dist_values_[i].begin() + 4,
-                                              rem_dist_values_[i].end());
-      removal_distances = rem_dist_values_bini;
-    }
-  }
+      // Use the appropriate containment radii for the recoil electron
+      for (int i = 0; i < rem_dist_values_.size(); i++) {
+        theta_min = rem_dist_values_[i][0];
+        theta_max = rem_dist_values_[i][1];
+        p_min = rem_dist_values_[i][2];
+        p_max = rem_dist_values_[i][3];
+        inrange = true;
+
+        if (theta_min != -1.0) {
+          inrange = inrange && (recoil_theta >= theta_min);
+        }
+        if (theta_max != -1.0) {
+          inrange = inrange && (recoil_theta < theta_max);
+        }
+        if (p_min != -1.0) {
+          inrange = inrange && (recoil_p_mag >= p_min);
+        }
+        if (p_max != -1.0) {
+          inrange = inrange && (recoil_p_mag < p_max);
+        }
+        if (inrange) {
+          std::vector<float> rem_dist_values_bini(
+              rem_dist_values_[i].begin() + 4, rem_dist_values_[i].end());
+          rec_rem_dists = rem_dist_values_bini;
+        }
+      }
+      removal_distances.push_back(rec_rem_dists);
+    }  // end loop on ele_trajectories
+  }  // end condition on nonempty ele_trajectories
 
   auto rem_dist_finish = std::chrono::high_resolution_clock::now();
   profiling_map_["rem_dist"] += std::chrono::duration<float, std::milli>(
@@ -262,48 +314,68 @@ void EcalWABRecRemProcessor::produce(framework::Event &event) {
   std::vector<ldmx::EcalHit> ecal_rec_hits_inc;
   std::vector<ldmx::EcalHit> ecal_rec_hits_exc;
 
-  ldmx_log(trace) << "======== EcalRecHit List (length" << ecal_rec_hits.size()
-                  << ") ========";
-  for (const ldmx::EcalHit &hit :
-       ecal_rec_hits) {  // loops through hits in the ecal and discards all
-                         // those inside the electron's RoC
-    ldmx::EcalID id(hit.getID());
-    auto [x, y, z] = geometry_->getPosition(id);
-    XYCoords xy_pair = std::make_pair(x, y);
+  // the time complexity of this should just be O(n_ecal_rec_hits *
+  // n_ele_trajectories) if I've done things right
+  if (!ele_trajectories.empty()) {
+    ldmx_log(trace) << "      ======== EcalRecHitInc List (length"
+                    << ecal_rec_hits_inc.size() << ") ========";
+    for (const ldmx::EcalHit &hit :
+         ecal_rec_hits) {  // loops through reconstructed hits in the ecal and
+                           // discards all those inside the electron's RoC
+      ldmx::EcalID id(hit.getID());
+      auto [x, y, z] = geometry_->getPosition(id);
+      XYCoords xy_pair = std::make_pair(x, y);
 
-    float dist_ele_traj =  // calculates distance between hit location and
-                           // projected particle positions
-        ele_trajectory.size()
-            ? sqrt(pow((xy_pair.first - ele_trajectory[id.layer()].first), 2) +
-                   pow((xy_pair.second - ele_trajectory[id.layer()].second), 2))
-            : -1.0;
+      bool include = true;
+      for (int i = 0; i < ele_trajectories.size(); ++i) {
+        std::vector<XYCoords> &ele_trajectory = ele_trajectories[i];
+        std::vector<float> &rec_rem_dists = removal_distances[i];
 
-    if (dist_ele_traj == -1.0) {
-      ldmx_log(trace) << "  ele_trajectory does not exist; KEEP";
-      ecal_rec_hits_inc.emplace_back(hit);
-      continue;
-    } else if (dist_ele_traj <=
-               (removal_distances[id.layer()])) {  // if the hit is inside
-                                                   // 1*RoC of the electron,
+        float dist_ele_traj =  // calculates distance between hit location and
+                               // projected particle positions
+            ele_trajectory.size()
+                ? sqrt(pow((xy_pair.first - ele_trajectory[id.layer()].first),
+                           2) +
+                       pow((xy_pair.second - ele_trajectory[id.layer()].second),
+                           2))
+                : -1.0;
+        if (dist_ele_traj == -1.0) {
+          ldmx_log(trace) << "        ele_trajectory does not exist; KEEP";
+          continue;
+        } else if (dist_ele_traj <=
+                   (rec_rem_dists[id.layer()])) {  // if the hit is inside some
+                                                   // distance of the electron,
                                                    // discard it; else keep it
-      ldmx_log(trace) << "  dist_ele_traj = " << dist_ele_traj
-                      << " <= " << removal_distances[id.layer()] << "; DISCARD";
-      ecal_rec_hits_exc.emplace_back(hit);
-    } else {
-      ldmx_log(trace) << "  dist_ele_traj = " << dist_ele_traj
-                      << " <= " << removal_distances[id.layer()] << "; KEEP";
-      ecal_rec_hits_inc.emplace_back(hit);
-    }
+          ldmx_log(trace) << "        dist_ele_traj = " << dist_ele_traj
+                          << " <= " << rec_rem_dists[id.layer()] << "; DISCARD";
+          include = false;
+        } else {
+          ldmx_log(trace) << "        dist_ele_traj = " << dist_ele_traj
+                          << " > " << rec_rem_dists[id.layer()] << "; KEEP";
+          continue;
+        }
+      }  // end loop on electron trajectories
+
+      // drop or keep hit
+      if (include) {
+        ecal_rec_hits_inc.emplace_back(hit);
+      } else {
+        ecal_rec_hits_exc.emplace_back(hit);
+      }
+
+    }  // end loop on ecal_rec_hits
+    ldmx_log(trace) << "      ======== END OF ecal_rec_hit List ========";
+  } else {  // end condition on nonempty ele_trajectories
+    ecal_rec_hits_inc = ecal_rec_hits;
   }
-  ldmx_log(trace) << "======== END OF ecal_rec_hit List ========";
-  ldmx_log(info) << "Removed " << ecal_rec_hits_exc.size()
+  ldmx_log(info) << "    Removed " << ecal_rec_hits_exc.size()
                  << " hits within recoil electron RoC; "
                  << ecal_rec_hits_inc.size() << " hits remaining of "
                  << ecal_rec_hits.size();
 
-  // creates collection for reduced set of rechits for analysis
+  // creates collection for reduced set of rec hits for analysis
   event.add(collection_name_included_, ecal_rec_hits_inc);
-  // creates collection of discarded rechits
+  // creates collection of discarded rec hits
   event.add(collection_name_excluded_, ecal_rec_hits_exc);
 
   auto recoil_removal_finish = std::chrono::high_resolution_clock::now();
