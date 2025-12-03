@@ -40,6 +40,8 @@ void EcalWABRecRemProcessor::configure(
   recoil_from_tracking_ = parameters.get<bool>("recoil_from_tracking");
   track_coll_name_ = parameters.get<std::string>("track_coll_name");
   track_pass_name_ = parameters.get<std::string>("track_pass_name");
+  ele_count = 1; // number of electrons in the event; TO DO: replace with
+                 // the ElectronCounter
 
   // Read in array holding the removal distances for Ecal hit removals
   if (!std::ifstream(rem_dist_file_name_).good()) {
@@ -66,7 +68,7 @@ void EcalWABRecRemProcessor::configure(
     }
   }
 
-  if (!recoil_from_tracking_) {
+  if ((!recoil_from_tracking_) && (ele_count != 1)) {
     EXCEPTION_RAISE("EcalWABRecRemProcessor",
                     "The processor is currently not configured to use sim "
                     "information! Please set recoil_from_tracking = true");
@@ -84,8 +86,6 @@ void EcalWABRecRemProcessor::produce(framework::Event &event) {
   geometry_ = &getCondition<ldmx::EcalGeometry>(
       ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME);
 
-  int ele_count{2};  // number of electrons in the event; TO DO: replace with
-                     // the ElectronCounter
   std::vector<std::array<float, 3>> ele_p;
   std::vector<std::array<float, 3>> ele_pos;
   std::vector<bool> fiducial_in_tracker;
@@ -99,55 +99,56 @@ void EcalWABRecRemProcessor::produce(framework::Event &event) {
   ///////////////////////////////////////////////////
 
   // TO DO: Gear this for multiple electron tracks in the Ecal, right now it can
-  // only handle one if (!recoil_from_tracking_ &&
-  //     event.exists("EcalScoringPlaneHits", ecal_sp_hits_pass_name_)) {
-  //   ldmx_log(trace) << "    Loop through all of the sim particles and find
-  //   the "
-  //                      "recoil electron";
+  // only handle one 
+  if (!recoil_from_tracking_ &&
+      event.exists("EcalScoringPlaneHits", ecal_sp_hits_pass_name_) &&
+      ele_count == 1) {
+    ldmx_log(trace) << "    Loop through all of the sim particles and find the "
+                       "recoil electron";
 
-  //   // Get the collection of simulated particles from the event
-  //   auto particle_map{event.getMap<int, ldmx::SimParticle>(
-  //       "SimParticles", ecal_sim_pass_name_)};
+    // Get the collection of simulated particles from the event
+    auto particle_map{event.getMap<int, ldmx::SimParticle>(
+        "SimParticles", ecal_sim_pass_name_)};
 
-  //   // Loop through all of the sim particles and find the recoil electron.
-  //   auto [recoil_track_id, recoil_electron] =
-  //   analysis::getRecoil(particle_map);
+    // Loop through all of the sim particles and find the recoil electron.
+    auto [recoil_track_id, recoil_electron] =
+    analysis::getRecoil(particle_map);
 
-  //   // Find ECAL SP hit for recoil electron
-  //   auto ecal_sp_hits{event.getCollection<ldmx::SimTrackerHit>(
-  //       "EcalScoringPlaneHits", ecal_sp_hits_pass_name_)};
-  //   float pmax = 0;
-  //   for (ldmx::SimTrackerHit &sp_hit : ecal_sp_hits) {
-  //     ldmx::SimSpecialID hit_id(sp_hit.getID());
-  //     auto ecal_sp_momentum = sp_hit.getMomentum();
-  //     auto ecal_sp_position = sp_hit.getPosition();
-  //     if (hit_id.plane() != 31 || ecal_sp_momentum[2] <= 0) continue;
+    // Find ECAL SP hit for recoil electron
+    auto ecal_sp_hits{event.getCollection<ldmx::SimTrackerHit>(
+        "EcalScoringPlaneHits", ecal_sp_hits_pass_name_)};
+    float pmax = 0;
+    for (ldmx::SimTrackerHit &sp_hit : ecal_sp_hits) {
+      ldmx::SimSpecialID hit_id(sp_hit.getID());
+      auto ecal_sp_momentum = sp_hit.getMomentum();
+      auto ecal_sp_position = sp_hit.getPosition();
+      if (hit_id.plane() != 31 || ecal_sp_momentum[2] <= 0) continue;
 
-  //     if (sp_hit.getTrackID() == recoil_track_id) {
-  //       // A*A is faster than pow(A,2)
-  //       if (sqrt((ecal_sp_momentum[0] * ecal_sp_momentum[0]) +
-  //                (ecal_sp_momentum[1] * ecal_sp_momentum[1]) +
-  //                (ecal_sp_momentum[2] * ecal_sp_momentum[2])) > pmax) {
-  //         recoil_p = {static_cast<float>(ecal_sp_momentum[0]),
-  //                     static_cast<float>(ecal_sp_momentum[1]),
-  //                     static_cast<float>(ecal_sp_momentum[2])};
-  //         recoil_pos = {(ecal_sp_position[0]), (ecal_sp_position[1]),
-  //                       (ecal_sp_position[2])};
-  //         pmax = sqrt(recoil_p[0] * recoil_p[0] + recoil_p[1] * recoil_p[1] +
-  //                     recoil_p[2] * recoil_p[2]);
-  //         ldmx_log(debug) << "    Set recoil_p = (" << recoil_p[0] << ", "
-  //                         << recoil_p[1] << ", " << recoil_p[2]
-  //                         << ") and recoil_pos = (" << recoil_pos[0] << ", "
-  //                         << recoil_pos[1] << ", " << recoil_pos[2] << ")";
-  //       }
-  //     }
-  //   }
-  // } else if (!event.exists(
-  //                "EcalScoringPlaneHits",
-  //                ecal_sp_hits_pass_name_)) {  // end condition on ecal SP
-  //   ldmx_log(debug)
-  //       << "Event does not exist in collection EcalScoringPlaneHits";
-  // }
+      if (sp_hit.getTrackID() == recoil_track_id) {
+        // A*A is faster than pow(A,2)
+        if (sqrt((ecal_sp_momentum[0] * ecal_sp_momentum[0]) +
+                 (ecal_sp_momentum[1] * ecal_sp_momentum[1]) +
+                 (ecal_sp_momentum[2] * ecal_sp_momentum[2])) > pmax) {
+          recoil_p = {static_cast<float>(ecal_sp_momentum[0]),
+                      static_cast<float>(ecal_sp_momentum[1]),
+                      static_cast<float>(ecal_sp_momentum[2])};
+          recoil_pos = {(ecal_sp_position[0]), (ecal_sp_position[1]),
+                        (ecal_sp_position[2])};
+          pmax = sqrt(recoil_p[0] * recoil_p[0] + recoil_p[1] * recoil_p[1] +
+                      recoil_p[2] * recoil_p[2]);
+          ldmx_log(debug) << "    Set recoil_p = (" << recoil_p[0] << ", "
+                          << recoil_p[1] << ", " << recoil_p[2]
+                          << ") and recoil_pos = (" << recoil_pos[0] << ", "
+                          << recoil_pos[1] << ", " << recoil_pos[2] << ")";
+        }
+      }
+    }
+  } else if (!event.exists(
+                 "EcalScoringPlaneHits",
+                 ecal_sp_hits_pass_name_)) {  // end condition on ecal SP
+    ldmx_log(debug)
+        << "Event does not exist in collection EcalScoringPlaneHits";
+  }
 
   // Get recoil_pos using recoil tracking
   if (recoil_from_tracking_) {

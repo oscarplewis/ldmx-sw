@@ -76,6 +76,9 @@ class EcalWABRecRemProcessor : public framework::Producer {
   float processing_time_{0.};
   std::map<std::string, float> profiling_map_;
 
+  // Number of electrons in the event; TO DO: replace with ElectronCounter
+  int ele_count{1};
+
   std::vector<float> ecal_layer_edep_raw_;
   std::vector<float> ecal_layer_edep_readout_;
   std::vector<float> ecal_layer_time_;
