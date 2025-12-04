@@ -89,8 +89,6 @@ std::vector<float> recoilTrackProp(const ldmx::Tracks &tracks,
     float track_state_loc1 = static_cast<float>(ecal_track_state.params_[1]);
     // param 2 = phi (azimuthal), param 3 = theta (polar)
     // param 4 = QoP
-    // discard positively charged and neutral tracks
-    if (ecal_track_state.params_[4] >= 0.0) continue;
     // ACTS (local)  to  LDMX (global) coordinates: (y_,z_,x_)->  (x_,y_,z_)
     // convert qop [1/GeV] to p [MeV]
     float p_track_state = (-1 / ecal_track_state.params_[4]) * 1000;
@@ -163,9 +161,6 @@ std::vector<std::vector<float>> eleTrackProp(const ldmx::Tracks &tracks,
     float track_state_loc1 = static_cast<float>(ecal_track_state.params_[1]);
     // param 2 = phi (azimuthal), param 3 = theta (polar)
     // param 4 = QoP
-    // discard positively charged and neutral tracks
-    if (ecal_track_state.params_[4] >= 0.0) continue;
-
     // ACTS (local)  to  LDMX (global) coordinates: (y_,z_,x_)->  (x_,y_,z_)
     // convert qop [1/GeV] to p [MeV]
     float p_track_state = (-1.0f / ecal_track_state.params_[4]) * 1000;
