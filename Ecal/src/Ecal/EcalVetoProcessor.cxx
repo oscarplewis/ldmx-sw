@@ -79,6 +79,8 @@ void EcalVetoProcessor::configure(framework::config::Parameters &parameters) {
 
   sim_particles_passname_ =
       parameters.get<std::string>("sim_particles_passname");
+  sim_particles_coll_name_ =
+      parameters.get<std::string>("sim_particles_coll_name");
   // Load BDT ONNX file
   rt_ = std::make_unique<ldmx::ort::ONNXRuntime>(
       parameters.get<std::string>("bdt_file"));
@@ -210,7 +212,7 @@ void EcalVetoProcessor::produce(framework::Event &event) {
 
     // Get the collection of simulated particles from the event
     auto particle_map{event.getMap<int, ldmx::SimParticle>(
-        "SimParticles", sim_particles_passname_)};
+        sim_particles_coll_name_, sim_particles_passname_)};
 
     // Search for the recoil electron
     auto [recoil_track_id, recoil_electron] = analysis::getRecoil(particle_map);
@@ -342,7 +344,7 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   if (find_dist_traj_from_sim_vars) {
     // Get the collection of simulated particles from the event
     auto particle_map{event.getMap<int, ldmx::SimParticle>(
-        "SimParticles", sim_particles_passname_)};
+        sim_particles_coll_name_, sim_particles_passname_)};
 
     // Search for the truth recoil electron and brem photon
     auto [recoil_track_id, recoil_electron] = analysis::getRecoil(particle_map);

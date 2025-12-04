@@ -33,6 +33,7 @@ class EcalVetoProcessor(ldmxcfg.Producer) :
         self.inverse_skim = False
 
         self.sim_particles_passname = ""
+        self.sim_particles_coll_name = "SimParticles"
         self.track_pass_name = ""
 
         self.ecal_simhits_passname = ""

@@ -169,9 +169,10 @@ class EcalVetoProcessor : public framework::Producer {
   std::string track_collection_;
 
   std::string sim_particles_passname_;
+  std::string sim_particles_coll_name_;
   bool inverse_skim_{false};
 
-  /** Name of the collection which will containt the results. */
+  /** Name of the collection which will contain the results. */
   std::string collection_name_{"EcalVeto"};
 
   std::unique_ptr<ldmx::ort::ONNXRuntime> rt_;
