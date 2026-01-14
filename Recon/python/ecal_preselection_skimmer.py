@@ -51,6 +51,10 @@ fiducial_level: int
     0: don't care if it's fiducial or not, 
     1: keep fiducial events only, 
     2: keep non-fid events only
+tracker_fiducial_level: int
+    0: don't care if it's fiducial or not, 
+    1: keep fiducial events only, 
+    2: keep non-fid events only
 
 
 
@@ -107,4 +111,5 @@ class EcalPreselectionSkimmer(ldmxcfg.Producer) :
         self.n_straight_tracks_max = 9999
         self.bdt_disc_min = 0.
         self.fiducial_level = 0
+        self.tracker_fiducial_level = 0
 
