@@ -38,26 +38,42 @@ void EcalPreselectionSkimmer::produce(framework::Event &event) {
   bool fiducial_decision{true};
   const auto &ecal_veto{
       event.getObject<ldmx::EcalVetoResult>(ecal_veto_name_, ecal_veto_pass_)};
-  const auto &mip_result{
-      event.getObject<ldmx::EcalMipResult>(ecal_mip_name_, ecal_mip_pass_)};
   // Boolean to if we skim for fiducial / nonfiducial
   fiducial_decision = (fiducial_level_ == 0 ||
                        (fiducial_level_ == 1 && ecal_veto.getFiducial()) ||
                        (fiducial_level_ == 2 && !ecal_veto.getFiducial()));
 
-  // Boolean to check if we pass preselection
-  passed_preselection =
-      (ecal_veto.getSummedDet() < summed_det_max_) &&
-      (ecal_veto.getSummedTightIso() < summed_tight_iso_max_) &&
-      (ecal_veto.getEcalBackEnergy() < ecal_back_energy_max_) &&
-      (ecal_veto.getNReadoutHits() < n_readout_hits_max_) &&
-      (ecal_veto.getShowerRMS() < shower_rms_max_) &&
-      (ecal_veto.getYStd() < shower_y_std_max_) &&
-      (ecal_veto.getXStd() < shower_x_std_max_) &&
-      (ecal_veto.getMaxCellDep() < max_cell_dep_max_) &&
-      (ecal_veto.getStdLayerHit() < std_layer_hit_max_) &&
-      (mip_result.getNStraightTracks() < n_straight_tracks_max_) &&
-      (ecal_veto.getDisc() > bdt_disc_min_) && fiducial_decision;
+  if (n_straight_tracks_max_ !=
+      9999) {  // only load EcalMipInfo branch if needed
+    const auto &mip_result{
+        event.getObject<ldmx::EcalMipResult>(ecal_mip_name_, ecal_mip_pass_)};
+    // Boolean to check if we pass preselection
+    passed_preselection =
+        (ecal_veto.getSummedDet() < summed_det_max_) &&
+        (ecal_veto.getSummedTightIso() < summed_tight_iso_max_) &&
+        (ecal_veto.getEcalBackEnergy() < ecal_back_energy_max_) &&
+        (ecal_veto.getNReadoutHits() < n_readout_hits_max_) &&
+        (ecal_veto.getShowerRMS() < shower_rms_max_) &&
+        (ecal_veto.getYStd() < shower_y_std_max_) &&
+        (ecal_veto.getXStd() < shower_x_std_max_) &&
+        (ecal_veto.getMaxCellDep() < max_cell_dep_max_) &&
+        (ecal_veto.getStdLayerHit() < std_layer_hit_max_) &&
+        (mip_result.getNStraightTracks() < n_straight_tracks_max_) &&
+        (ecal_veto.getDisc() > bdt_disc_min_) && fiducial_decision;
+  } else {
+    // Boolean to check if we pass preselection
+    passed_preselection =
+        (ecal_veto.getSummedDet() < summed_det_max_) &&
+        (ecal_veto.getSummedTightIso() < summed_tight_iso_max_) &&
+        (ecal_veto.getEcalBackEnergy() < ecal_back_energy_max_) &&
+        (ecal_veto.getNReadoutHits() < n_readout_hits_max_) &&
+        (ecal_veto.getShowerRMS() < shower_rms_max_) &&
+        (ecal_veto.getYStd() < shower_y_std_max_) &&
+        (ecal_veto.getXStd() < shower_x_std_max_) &&
+        (ecal_veto.getMaxCellDep() < max_cell_dep_max_) &&
+        (ecal_veto.getStdLayerHit() < std_layer_hit_max_) &&
+        (ecal_veto.getDisc() > bdt_disc_min_) && fiducial_decision;
+  }
 
   // Tell the skimmer to keep or drop the event based on whether preselection
   // passed
