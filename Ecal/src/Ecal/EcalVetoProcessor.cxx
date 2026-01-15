@@ -339,8 +339,8 @@ void EcalVetoProcessor::produce(framework::Event &event) {
   std::array<float, 3> pos2target = {-9999., -9999., -9999.};
 
   bool find_dist_traj_from_sim_vars{
-      true};  // this conditional doesn't do anything functional, but is here to
-              // keep variable scopes nice and tidy
+      false};  // this conditional doesn't do anything functional, but is here
+               // to keep variable scopes nice and tidy
   if (find_dist_traj_from_sim_vars) {
     // Get the collection of simulated particles from the event
     auto particle_map{event.getMap<int, ldmx::SimParticle>(
