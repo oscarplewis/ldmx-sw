@@ -101,8 +101,8 @@ class EcalWABRecRemProcessor(ldmxcfg.Producer):
 from LDMX.Ecal.makePath import makeBDTPath
 ecalveto_wab_reprocessor = EcalVetoProcessor()
 vars(ecalveto_wab_reprocessor).update(
-    bdt_file = makeBDTPath( 'wab_bdt_1RoC_0.95' ),
-    disc_cut = 0.5185,
+    bdt_file = makeBDTPath( 'wab_bdt_2e_1RoC_0.95' ),
+    disc_cut = 0.9913983,
     rec_coll_name = 'EcalRecHitsInc',
     collection_name = 'EcalVetoInc',
 )
