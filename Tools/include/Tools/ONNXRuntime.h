@@ -55,6 +55,25 @@ class ONNXRuntime {
                   FloatArrays& input_values,
                   const std::vector<std::string>& output_names = {},
                   int64_t batch_size = 1) const;
+  /**
+   * Run model inference and get outputs.
+   * @param input_names List of the names of the input nodes.
+   * @param input_values List of input arrays for each input node. The order of
+   * `input_values` must match `input_names`.
+   * @param point_sizes List of numbers of points in input tensors. The order
+   * of `point_sizes` must match `input_names`.
+   * @param output_names Names of the output nodes to get outputs from. Empty
+   * list means all output nodes.
+   * @param batch_size Number of samples in the batch. Each array in
+   * `input_values` must have a shape layout of (batch_size, ...).
+   * @return A std::vector<std::vector<float>>, with the order matched to
+   * `output_names`. When `output_names` is empty, will return all outputs
+   * ordered as in `getOutputNames()`.
+   */
+  FloatArrays run(const std::vector<std::string>& input_names,
+                  FloatArrays& input_values, std::vector<int64_t> point_sizes,
+                  const std::vector<std::string>& output_names = {},
+                  int64_t batch_size = 1) const;
 
   /**
    * Get the names of all the output nodes.
