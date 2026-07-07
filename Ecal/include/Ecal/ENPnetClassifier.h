@@ -10,26 +10,39 @@
 
 // C++ standard library
 #include <cassert>
+#include <iomanip>
+#include <iostream>
 #include <string>
 
 // ldmx-sw framework
+#include "Framework/Configure/Parameters.h"
 #include "Framework/EventFile.h"
 #include "Framework/EventProcessor.h"
 #include "Framework/Exception/Exception.h"
-#include "Framework/Configure/Parameters.h"
 
 // ldmx-sw other
-#include "Tools/ONNXRuntime.h"
 #include "Ecal/Event/EcalHit.h"
 #include "Hcal/Event/HcalHit.h"
+#include "Tools/ONNXRuntime.h"
 #include "Tracking/Event/Measurement.h"
 
-namespace recon {
+template <typename T>
+std::string vecToStr(const std::vector<T>& vec) {
+  if (vec.empty()) return "()";
+  std::ostringstream oss;
+  oss << "(";
+  for (size_t i = 0; i < vec.size() - 1; i++) {
+    oss << vec[i] << ", ";
+  }
+  oss << vec.back() << ")";
+  return oss.str();
+}
+
+namespace ecal {
 
 class ENPnetClassifier : public framework::Producer {
  public:
-  ENPnetClassifier(const std::string& name,
-                             framework::Process& process)
+  ENPnetClassifier(const std::string& name, framework::Process& process)
       : Producer(name, process) {};
   virtual ~ENPnetClassifier() = default;
   void configure(framework::config::Parameters& parameters) override;
@@ -39,8 +52,6 @@ class ENPnetClassifier : public framework::Producer {
   void makeInputs(const std::vector<ldmx::Measurement>& digi_tracker_hits,
                   const std::vector<ldmx::EcalHit>& ecal_rec_hits,
                   const std::vector<ldmx::HcalHit>& hcal_rec_hits);
-
-  std::unique_ptr<ldmx::ort::ONNXRuntime> rt_;
 
   std::string model_path_;
   std::string digi_tracker_coll_name_;
@@ -53,18 +64,43 @@ class ENPnetClassifier : public framework::Producer {
   const std::vector<std::string> input_names_{
       "recoil_points", "recoil_features", "ecal_points",
       "ecal_features", "hcal_points",     "hcal_features"};
-  const std::vector<unsigned> input_sizes_;
 
   // the maximum number of hits imposed on the input to the model
-  const unsigned recoil_feats_len = 64;
-  const unsigned ecal_feats_len = 256;
-  const unsigned hcal_feats_len = 256;
+  const unsigned recoil_points_max_ = 64;
+  const unsigned ecal_points_max_ = 256;
+  const unsigned hcal_points_max_ = 256;
+  // position of different features in vectors
+  // the flattened data needs to be passed to ONNXRuntime::run in the form
+  // of (N, C, P), N=batch size, C=no. of features, P=no. of points
+  // so the data should be channel-major ordered,
+  //       (x0, x1,..., y0, y1,...) and NOT (x0, y0, z0, ...)
+  // these offsets here represent the order of the features, which will be
+  // multiplied by the number of points to give the correct ordering in the
+  // implementation of makeInputs()
+  const unsigned coord_x_offset_ = 0;
+  const unsigned coord_y_offset_ = 1;
+  const unsigned coord_z_offset_ = 2;
+  const unsigned feat_e_offset_ = 0;
+  const unsigned feat_x_offset_ = 1;
+  const unsigned feat_y_offset_ = 2;
+  const unsigned feat_z_offset_ = 3;
+  // size of features column
+  const unsigned feats_len_ = 4;
+  const unsigned coords_len_ = 3;
 
-  // initialize input matrix based on the input for this particular model
-  std::vector<std::vector<std::vector<float>>> input_data_{std::vector<std::vector<float>>(recoil_feats_len, std::vector<float>(3, 0.0)), std::vector<std::vector<float>>(recoil_feats_len, std::vector<float>(4, 0.0)), std::vector<std::vector<float>>(ecal_feats_len, std::vector<float>(3, 0.0)), std::vector<std::vector<float>>(ecal_feats_len, std::vector<float>(4, 0.0)), std::vector<std::vector<float>>(hcal_feats_len, std::vector<float>(3, 0.0)), std::vector<std::vector<float>>(hcal_feats_len, std::vector<float>(4, 0.0))};
-  // init variable to store predictions
+  // the classifier model itself
+  std::unique_ptr<ldmx::ort::ONNXRuntime> rt_;
+  // input matrix based on the input for this particular model
+  std::vector<std::vector<float>> input_data_{
+      std::vector<float>(recoil_points_max_ * coords_len_, 0.0),
+      std::vector<float>(recoil_points_max_ * feats_len_, 0.0),
+      std::vector<float>(ecal_points_max_ * coords_len_, 0.0),
+      std::vector<float>(ecal_points_max_ * feats_len_, 0.0),
+      std::vector<float>(hcal_points_max_ * coords_len_, 0.0),
+      std::vector<float>(hcal_points_max_ * feats_len_, 0.0)};
+  // variable to store predictions, type is identical to ldmx::ort::FloatArrays
   std::vector<std::vector<float>> pred_;
 };
 
-}  // namespace recon
+}  // namespace ecal
 #endif /* ENPNETCLASSIFIER_H */
