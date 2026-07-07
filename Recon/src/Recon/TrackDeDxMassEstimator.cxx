@@ -15,6 +15,7 @@ void TrackDeDxMassEstimator::configure(framework::config::Parameters& ps) {
   fit_res_k_ = ps.get<double>("fit_res_k");
   input_pass_name_ = ps.get<std::string>("input_pass_name");
   track_collection_ = ps.get<std::string>("track_collection");
+  mass_estimate_name_ = ps.get<std::string>("mass_estimate_name");
 
   ldmx_log(info) << "Track Collection used for TrackDeDxMassEstimator "
                  << track_collection_;
@@ -137,7 +138,7 @@ void TrackDeDxMassEstimator::produce(framework::Event& event) {
   }
 
   // Add the mass estimates to the event
-  event.add("TrackDeDxMassEstimate", mass_estimates);
+  event.add(mass_estimate_name_, mass_estimates);
 }
 }  // namespace recon
 

@@ -36,6 +36,7 @@ class TrackDeDxMassEstimator(Processor):
 
     track_collection: str = "RecoilTracks"
     input_pass_name: str = ""
+    mass_estimate_name: str = "TrackDeDxMassEstimate"
     fit_res_c: float = 3.094
     fit_res_k: float = 1.862
 

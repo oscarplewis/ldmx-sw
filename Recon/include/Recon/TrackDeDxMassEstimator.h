@@ -43,6 +43,9 @@ class TrackDeDxMassEstimator : public framework::Producer {
   // pass name the input collections
   std::string input_pass_name_;
 
+  // name of output collection
+  std::string mass_estimate_name_;
+
 };  // TrackDeDxMassEstimator
 
 }  // namespace recon
