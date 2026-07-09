@@ -17,12 +17,15 @@ void ENPnetClassifier::configure(framework::config::Parameters& parameters) {
       parameters.get<std::string>("hcal_rec_hits_coll_name");
   hcal_rec_hits_pass_name_ =
       parameters.get<std::string>("hcal_rec_hits_pass_name");
+  collection_name_ = parameters.get<std::string>("collection_name");
 
   // define ONNX model runtime
   rt_ = std::make_unique<ldmx::ort::ONNXRuntime>(model_path_.c_str());
 }
 
 void ENPnetClassifier::produce(framework::Event& event) {
+  // first clear the output
+  result_.clear();
   // load collections
   const std::vector<ldmx::Measurement> digi_tracker_hits =
       event.getCollection<ldmx::Measurement>(digi_tracker_coll_name_,
@@ -33,19 +36,26 @@ void ENPnetClassifier::produce(framework::Event& event) {
   const std::vector<ldmx::HcalHit> hcal_rec_hits =
       event.getCollection<ldmx::HcalHit>(hcal_rec_hits_coll_name_,
                                          hcal_rec_hits_pass_name_);
-  // create input matrix from collections
+  // fill input matrix from collections
   makeInputs(digi_tracker_hits, ecal_rec_hits, hcal_rec_hits);
 
-  ldmx_log(debug) << vecToStr(rt_->getOutputNames());
+  // ldmx_log(debug) << toString(rt_->getOutputNames());
 
-  ldmx_log(debug) << "ParticleNet output shape: "
-                  << vecToStr(rt_->getOutputShape("softmax"));
+  // ldmx_log(debug) << "ParticleNet output shape: "
+  //                 << toString(rt_->getOutputShape("softmax"));
 
-  // pass input matrix to model
-  pred_ = rt_->run(input_names_, input_data_);
-  // ldmx_log(debug) << "ParticleNet Classifier run with results: " << pred_; //
-  // doesn't work bc pred_ is a vector :( do something with prediction, and
-  // output to some branch probably
+  // pass input matrix to model, and get 'softmax' 8-component output from 2d
+  // output tensor
+  pred_ = rt_->run(input_names_, input_data_,
+                   {recoil_points_max_, recoil_points_max_, ecal_points_max_,
+                    ecal_points_max_, hcal_points_max_, hcal_points_max_},
+                   {}, 1)[0];
+  ldmx_log(debug) << "ParticleNet classifier run with results: "
+                  << toString(pred_);
+
+  processOutputs(pred_);
+
+  event.add(collection_name_, result_);
 }
 
 void ENPnetClassifier::makeInputs(
@@ -151,6 +161,14 @@ void ENPnetClassifier::makeInputs(
     ldmx_log(debug) << "Filled NN input matrix with " << n_hits_filled_
                     << " hits from " << hcal_rec_hits_coll_name_;
   }
+}
+
+void ENPnetClassifier::processOutputs(std::vector<float>& outputs) {
+  auto max_val_iter = std::max_element(outputs.begin(), outputs.end());
+  unsigned max_val_indx = max_val_iter - outputs.begin();
+  result_.setProbs(outputs);
+  result_.setLeadingPID(max_val_indx);
+  result_.setLeadingConfidence(*max_val_iter);
 }
 
 }  // namespace ecal

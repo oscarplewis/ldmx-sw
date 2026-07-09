@@ -13,5 +13,6 @@
 #pragma link C++ class std::vector < ldmx::EcalCluster> + ;
 #pragma link C++ class ldmx::EcalHit + ;
 #pragma link C++ class std::vector < ldmx::EcalHit> + ;
+#pragma link C++ class ldmx::ENPnetResult + ;
 
 #endif

@@ -12,7 +12,10 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <string>
+#include <type_traits>
+#include <vector>
 
 // ldmx-sw framework
 #include "Framework/Configure/Parameters.h"
@@ -21,21 +24,39 @@
 #include "Framework/Exception/Exception.h"
 
 // ldmx-sw other
+#include "Ecal/Event/ENPnetResult.h"
 #include "Ecal/Event/EcalHit.h"
 #include "Hcal/Event/HcalHit.h"
 #include "Tools/ONNXRuntime.h"
 #include "Tracking/Event/Measurement.h"
 
+// type trait to detect if something is a std::vector
 template <typename T>
-std::string vecToStr(const std::vector<T>& vec) {
-  if (vec.empty()) return "()";
-  std::ostringstream oss;
-  oss << "(";
-  for (size_t i = 0; i < vec.size() - 1; i++) {
-    oss << vec[i] << ", ";
+struct is_vector : std::false_type {};
+
+template <typename T, typename Alloc>
+struct is_vector<std::vector<T, Alloc>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_vector_v = is_vector<T>::value;
+
+// Generic converter: works for scalars, strings, and nested vectors
+template <typename T>
+std::string toString(const T& value) {
+  if constexpr (is_vector_v<T>) {
+    std::ostringstream oss;
+    oss << "(";
+    for (size_t i = 0; i < value.size(); ++i) {
+      oss << toString(value[i]);
+      if (i + 1 < value.size()) oss << ", ";
+    }
+    oss << ")";
+    return oss.str();
+  } else {
+    std::ostringstream oss;
+    oss << value;
+    return oss.str();
   }
-  oss << vec.back() << ")";
-  return oss.str();
 }
 
 namespace ecal {
@@ -52,6 +73,7 @@ class ENPnetClassifier : public framework::Producer {
   void makeInputs(const std::vector<ldmx::Measurement>& digi_tracker_hits,
                   const std::vector<ldmx::EcalHit>& ecal_rec_hits,
                   const std::vector<ldmx::HcalHit>& hcal_rec_hits);
+  void processOutputs(std::vector<float>& outputs);
 
   std::string model_path_;
   std::string digi_tracker_coll_name_;
@@ -60,10 +82,16 @@ class ENPnetClassifier : public framework::Producer {
   std::string ecal_rec_hits_pass_name_;
   std::string hcal_rec_hits_coll_name_;
   std::string hcal_rec_hits_pass_name_;
+  std::string collection_name_;
 
   const std::vector<std::string> input_names_{
       "recoil_points", "recoil_features", "ecal_points",
       "ecal_features", "hcal_points",     "hcal_features"};
+  const std::vector<std::string> output_classes_{
+      "leading_is_charged_pion", "leading_is_neutral_pion",
+      "leading_is_charged_kaon", "leading_is_neutral_kaon",
+      "leading_is_proton",       "leading_is_neutron",
+      "leading_is_other",        "no_en_daughters"};
 
   // the maximum number of hits imposed on the input to the model
   const unsigned recoil_points_max_ = 64;
@@ -93,13 +121,14 @@ class ENPnetClassifier : public framework::Producer {
   // input matrix based on the input for this particular model
   std::vector<std::vector<float>> input_data_{
       std::vector<float>(recoil_points_max_ * coords_len_, 0.0),
-      std::vector<float>(recoil_points_max_ * feats_len_, 0.0),
-      std::vector<float>(ecal_points_max_ * coords_len_, 0.0),
-      std::vector<float>(ecal_points_max_ * feats_len_, 0.0),
-      std::vector<float>(hcal_points_max_ * coords_len_, 0.0),
-      std::vector<float>(hcal_points_max_ * feats_len_, 0.0)};
-  // variable to store predictions, type is identical to ldmx::ort::FloatArrays
-  std::vector<std::vector<float>> pred_;
+      std::vector<float>(recoil_points_max_* feats_len_, 0.0),
+      std::vector<float>(ecal_points_max_* coords_len_, 0.0),
+      std::vector<float>(ecal_points_max_* feats_len_, 0.0),
+      std::vector<float>(hcal_points_max_* coords_len_, 0.0),
+      std::vector<float>(hcal_points_max_* feats_len_, 0.0)};
+  // variable to store output classification probabilities
+  std::vector<float> pred_;
+  ldmx::ENPnetResult result_;
 };
 
 }  // namespace ecal
