@@ -24,8 +24,11 @@ void ENPnetClassifier::configure(framework::config::Parameters& parameters) {
 }
 
 void ENPnetClassifier::produce(framework::Event& event) {
-  // first clear the output
+  // first clear the output variables
+  logits_.clear();
+  pred_.clear();
   result_.clear();
+  
   // load collections
   const std::vector<ldmx::Measurement> digi_tracker_hits =
       event.getCollection<ldmx::Measurement>(digi_tracker_coll_name_,
@@ -46,15 +49,18 @@ void ENPnetClassifier::produce(framework::Event& event) {
 
   // pass input matrix to model, and get 'softmax' 8-component output from 2d
   // output tensor
-  pred_ = rt_->run(input_names_, input_data_,
-                   {recoil_points_max_, recoil_points_max_, ecal_points_max_,
-                    ecal_points_max_, hcal_points_max_, hcal_points_max_},
-                   {}, 1)[0];
+  logits_ = rt_->run(input_names_, input_data_,
+                     {recoil_points_max_, recoil_points_max_, ecal_points_max_,
+                      ecal_points_max_, hcal_points_max_, hcal_points_max_},
+                     {}, 1)[0];
   ldmx_log(debug) << "ParticleNet classifier run with results: "
                   << toString(pred_);
 
-  processOutputs(pred_);
+  // process the logits outputted by the model
+  pred_ = softmax(logits_);
 
+  // fill result_ with prediction probabilities and add it to the collection
+  generateResult(pred_);
   event.add(collection_name_, result_);
 }
 
@@ -163,12 +169,34 @@ void ENPnetClassifier::makeInputs(
   }
 }
 
-void ENPnetClassifier::processOutputs(std::vector<float>& outputs) {
+std::vector<float> ENPnetClassifier::softmax(const std::vector<float>& logits) {
+  if (logits.empty()) {
+    ldmx_log(warn) << "logits is empty, something went wrong!";
+    return {};
+  }
+
+  // initialize output vector
+  std::vector<float> output(logits.size());
+
+  // calculate exponentials of all logits
+  std::vector<float> exp_vals(logits.size());
+  for (unsigned k = 0; k < logits.size(); ++k) {
+    exp_vals.at(k) = std::exp(logits.at(k));
+  }
+  float sum_exp = std::accumulate(exp_vals.begin(), exp_vals.end(), 0.0);
+
+  // normalize each logit value
+  for (unsigned k = 0; k < logits.size(); ++k) {
+    output.at(k) = exp_vals.at(k) / sum_exp;
+  }
+  return output;
+}
+
+void ENPnetClassifier::generateResult(std::vector<float>& outputs) {
   auto max_val_iter = std::max_element(outputs.begin(), outputs.end());
   unsigned max_val_indx = max_val_iter - outputs.begin();
-  result_.setProbs(outputs);
+  result_.setLeadingProbs(outputs);
   result_.setLeadingPID(max_val_indx);
-  result_.setLeadingConfidence(*max_val_iter);
 }
 
 }  // namespace ecal

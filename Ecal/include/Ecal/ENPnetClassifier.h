@@ -70,10 +70,15 @@ class ENPnetClassifier : public framework::Producer {
   void produce(framework::Event& event) override;
 
  private:
+  // Loads detector hit collections into the format required by the model.
   void makeInputs(const std::vector<ldmx::Measurement>& digi_tracker_hits,
                   const std::vector<ldmx::EcalHit>& ecal_rec_hits,
                   const std::vector<ldmx::HcalHit>& hcal_rec_hits);
-  void processOutputs(std::vector<float>& outputs);
+  // Calculates softmax function on a vector of logits to produce prediction
+  // probabilities.
+  std::vector<float> softmax(const std::vector<float>& logits);
+  // Interprets prediction probabilities to write to `result_`.
+  void generateResult(std::vector<float>& outputs);
 
   std::string model_path_;
   std::string digi_tracker_coll_name_;
@@ -91,10 +96,10 @@ class ENPnetClassifier : public framework::Producer {
       "leading_is_charged_pion", "leading_is_neutral_pion",
       "leading_is_charged_kaon", "leading_is_neutral_kaon",
       "leading_is_proton",       "leading_is_neutron",
-      "leading_is_other",        "no_en_daughters"};
+      "leading_is_other"};
 
   // the maximum number of hits imposed on the input to the model
-  const unsigned recoil_points_max_ = 64;
+  const unsigned recoil_points_max_ = 256;
   const unsigned ecal_points_max_ = 256;
   const unsigned hcal_points_max_ = 256;
   // position of different features in vectors
@@ -126,8 +131,11 @@ class ENPnetClassifier : public framework::Producer {
       std::vector<float>(ecal_points_max_* feats_len_, 0.0),
       std::vector<float>(hcal_points_max_* coords_len_, 0.0),
       std::vector<float>(hcal_points_max_* feats_len_, 0.0)};
-  // variable to store output classification probabilities
+  // logits are directly outputted by the ParticleNet model
+  std::vector<float> logits_;
+  // pred_ stores the processed probabilities, calculated from the logits
   std::vector<float> pred_;
+  // result_ stores the final result of the classifier processor
   ldmx::ENPnetResult result_;
 };
 
